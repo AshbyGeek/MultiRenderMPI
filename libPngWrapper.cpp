@@ -24,6 +24,8 @@ LibPngWrapper::LibPngWrapper(const char* filename)
 	{
 		std::cerr << "Could not allocate info struct\n";
 	}
+
+	std::cout << "Successfully opened file for writing: " << filename;
 }
 
 bool LibPngWrapper::WriteImage(Image* image)

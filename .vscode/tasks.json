@@ -6,20 +6,18 @@
         {
             "label": "Build All",
             "type": "shell",
-            "command": "mpiCC -g -Wall mpiRender.cpp image.cpp -o mpiRender",
+            "command": "mpiCC -g -Wall main.cpp image.cpp libPngWrapper.cpp -lpng -o mpiRender",
             "group": {
                 "kind": "build",
                 "isDefault": true
             },
-            "problemMatcher": [
-                "$gcc"
-            ],
             "presentation": {
                 "echo": true,
                 "reveal": "silent",
                 "focus": false,
                 "panel": "shared"
-            }
+            },
+            "problemMatcher":"$gcc"
         },
         {
             "label": "Run",

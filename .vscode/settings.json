@@ -24,6 +24,7 @@
         "array": "cpp",
         "cmath": "cpp",
         "tuple": "cpp",
-        "utility": "cpp"
+        "utility": "cpp",
+        "chrono": "cpp"
     }
 }

@@ -8,11 +8,10 @@
 #define UINT_MAX 0xFFFFFFFF
 
 #include "image.hh"
-// #include "libPngWrapper.hh"
+#include "libPngWrapper.hh"
 
 using namespace std;
 using namespace std::chrono;
-
 
 const int MAX_STRING = 200;
 
@@ -22,9 +21,8 @@ const int PADDING = 2;
 
 const int numRuns = 4;
 
-const int PIXEL_BUFFER_TYPE_TAG = 1;    //Tag to use to indicate that a message contains a pixel buffer type
-union PixelBufferType
-{
+const int PIXEL_BUFFER_TYPE_TAG = 1; //Tag to use to indicate that a message contains a pixel buffer type
+union PixelBufferType {
     unsigned int buffer[3];
     struct
     {
@@ -34,19 +32,18 @@ union PixelBufferType
     };
 } PixelBuffer;
 
-union LineBufferType
-{
+union LineBufferType {
     unsigned int buffer[4];
     Line line;
 } LineBuffer;
 
-void mpiRenderMaster(int rank, int worldSize, std::vector<Line>* lines, Image* image, Pixel color)
+void mpiRenderMaster(int rank, int worldSize, std::vector<Line> *lines, Image *image, Pixel color)
 {
     printf("Starting to render lines.\n");
     for (unsigned int i = 0; i < lines->size(); i++)
     {
         // TODO: announce the line we're going to work on.
-        printf("Broadcasting Line: (%d,%d) to (%d,%d)\n",LineBuffer.line.start.x, LineBuffer.line.start.y, LineBuffer.line.end.x, LineBuffer.line.end.y);
+        printf("Broadcasting Line: (%d,%d) to (%d,%d)\n", LineBuffer.line.start.x, LineBuffer.line.start.y, LineBuffer.line.end.x, LineBuffer.line.end.y);
         LineBuffer.line = lines->at(i);
         MPI_Bcast(&LineBuffer.buffer, sizeof(LineBuffer.buffer), MPI_UNSIGNED, 0, MPI_COMM_WORLD);
         printf("Successful Broadcast\n");
@@ -68,7 +65,6 @@ void mpiRenderMaster(int rank, int worldSize, std::vector<Line>* lines, Image* i
                 auto pixel = image->GetPixel(PixelBuffer.x, PixelBuffer.y);
                 color.a = PixelBuffer.alpha;
                 *pixel = Image::BlendPixels(*pixel, color);
-                //printf("Pixel (%d,%d) Received: %d", PixelBuffer.x, PixelBuffer.y, PixelBuffer.alpha);
             }
         }
         printf("All threads have completed.\n");
@@ -77,62 +73,61 @@ void mpiRenderMaster(int rank, int worldSize, std::vector<Line>* lines, Image* i
 
 void DrawPixelsAt(Line line, unsigned int x, unsigned int y)
 {
-	PixelBuffer.alpha = Image::RenderAlphaForPixel(line, x, y);
+    PixelBuffer.alpha = Image::RenderAlphaForPixel(line, x, y);
     PixelBuffer.x = x;
     PixelBuffer.y = y;
     MPI_Send(&PixelBuffer.buffer, sizeof(PixelBuffer.buffer), MPI_UNSIGNED, 0, PIXEL_BUFFER_TYPE_TAG, MPI_COMM_WORLD);
 }
 
-void DrawLineXCentric(Line line, int rank, int worldSize)
+void DrawLineXCentric(Line line, int slaveRank, int numSlaves)
 {
-	Point start = line.start;
-	Point end = line.end;
-	if (line.start.y > line.end.y)
-	{
-		start = line.end;
-		end = line.start;
-	}
+    Point start = line.start;
+    Point end = line.end;
+    if (line.start.y > line.end.y)
+    {
+        start = line.end;
+        end = line.start;
+    }
 
-	int dx = end.x - start.x;
-	int dy = end.y - start.y;
+    int dx = end.x - start.x;
+    int dy = end.y - start.y;
 
-    unsigned int chunkSize = std::max(dy / worldSize, 1);
-    unsigned int startY = start.y + chunkSize * rank;
-    unsigned int endY = start.y + chunkSize * (rank + 1);
+    unsigned int chunkSize = std::max(dy / numSlaves, 1);
+    unsigned int startY = start.y + chunkSize * slaveRank;
+    unsigned int endY = start.y + chunkSize * (slaveRank + 1);
 
-	for (unsigned int y = startY; y <= end.y && y < endY; y++)
-	{
-		float x = start.x + dx / (float)dy * (y - start.y);
-		DrawPixelsAt(line, ceil(x), y);
-		DrawPixelsAt(line, floor(x), y);
-	}
+    for (unsigned int y = startY; y <= end.y && y < endY; y++)
+    {
+        float x = start.x + dx / (float)dy * (y - start.y);
+        DrawPixelsAt(line, ceil(x), y);
+        DrawPixelsAt(line, floor(x), y);
+    }
 }
 
-void DrawLineYCentric(Line line, int rank, int worldSize)
+void DrawLineYCentric(Line line, int slaveRank, int numSlaves)
 {
-	Point start = line.start;
-	Point end = line.end;
-	if (line.start.x > line.end.x)
-	{
-		start = line.end;
-		end = line.start;
-	}
+    Point start = line.start;
+    Point end = line.end;
+    if (line.start.x > line.end.x)
+    {
+        start = line.end;
+        end = line.start;
+    }
 
-	int dx = end.x - start.x;
-	int dy = end.y - start.y;
+    int dx = end.x - start.x;
+    int dy = end.y - start.y;
 
-    unsigned int chunkSize = std::max(dx / worldSize, 1);
-    unsigned int startX = start.x + chunkSize * rank;
-    unsigned int endX = start.x + chunkSize * (rank + 1);
+    unsigned int chunkSize = std::max(dx / numSlaves, 1);
+    unsigned int startX = start.x + chunkSize * slaveRank;
+    unsigned int endX = start.x + chunkSize * (slaveRank + 1);
 
-	for (unsigned int x = startX; x <= end.x && x < endX; x++)
-	{
-		float y = start.y + dy / (float)dx * (x - start.x);
-		DrawPixelsAt(line, x, ceil(y));
-		DrawPixelsAt(line, x, floor(y));
-	}
+    for (unsigned int x = startX; x <= end.x && x < endX; x++)
+    {
+        float y = start.y + dy / (float)dx * (x - start.x);
+        DrawPixelsAt(line, x, ceil(y));
+        DrawPixelsAt(line, x, floor(y));
+    }
 }
-
 
 void mpiRenderSlave(int rank, int worldSize)
 {
@@ -153,11 +148,11 @@ void mpiRenderSlave(int rank, int worldSize)
 
             if (abs(tmpdx) < abs(tmpdy))
             {
-                DrawLineXCentric(line, rank, worldSize);
+                DrawLineXCentric(line, rank - 1, worldSize - 1);
             }
             else
             {
-                DrawLineYCentric(line, rank, worldSize);
+                DrawLineYCentric(line, rank - 1, worldSize - 1);
             }
 
             // Indicate that we're done
@@ -168,10 +163,9 @@ void mpiRenderSlave(int rank, int worldSize)
     }
 }
 
-
 std::vector<Line> *BuildLines()
 {
-    std::vector<Line>* lines = new std::vector<Line>();
+    std::vector<Line> *lines = new std::vector<Line>();
     Line line;
 
     // diagonal top left to bottom right
@@ -205,7 +199,6 @@ std::vector<Line> *BuildLines()
     return lines;
 }
 
-
 int main()
 {
     // Setup
@@ -214,13 +207,13 @@ int main()
     MPI_Init(NULL, NULL);
     MPI_Comm_size(MPI_COMM_WORLD, &worldSize);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-    
+
     if (rank == 0)
     {
         // Main Process setup
-        std::vector<Line>* lines = BuildLines();
+        std::vector<Line> *lines = BuildLines();
 
-        std::vector<Image*> images(numRuns);
+        std::vector<Image *> images(numRuns);
         for (int i = 0; i < numRuns; i++)
         {
             images[i] = new Image(WIDTH, HEIGHT);
@@ -233,7 +226,7 @@ int main()
         color.b = 0;
 
         // Do the work and time it
-	    auto t1 = high_resolution_clock::now();
+        auto t1 = high_resolution_clock::now();
 
         for (int i = 0; i < numRuns; i++)
         {
@@ -249,12 +242,12 @@ int main()
         MPI_Bcast(&LineBuffer.buffer, sizeof(LineBuffer.buffer), MPI_UNSIGNED, 0, MPI_COMM_WORLD);
 
         cout << "Avg runtime (" << numRuns << " runs): ";
-        printf("%6.2lf", (duration / 1000 / (float)numRuns)); 
+        printf("%6.2lf", (duration / 1000 / (float)numRuns));
         cout << " milliseconds\n";
 
-        // //write the first image
-        // LibPngWrapper wrapper("renderedImage.png");
-        // wrapper.WriteImage(images[0]);
+        //write the first image
+        LibPngWrapper wrapper("renderedImage.png");
+        wrapper.WriteImage(images[0]);
 
         // Cleanup
         for (unsigned int i = 0; i < images.size(); i++)
